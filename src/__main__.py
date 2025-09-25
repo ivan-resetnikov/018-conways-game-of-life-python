@@ -1,4 +1,4 @@
-# 018 - Coways Game of Life
+# 018 - Conways Game of Life
 # by Ivan Reshetnikov at https://ivan-reshetnikov.dev, contact at contact@ivan-reshetnikov.dev
 # 
 # License:
