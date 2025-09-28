@@ -22,7 +22,6 @@ import os     # Provides: system
 import sys    # Provides: stdout
 import time   # Provides: sleep
 import random # Provides: randint
-import signal # Provides: SIGWINCH
 
 
 framebuffer_w: int = 0
@@ -30,18 +29,25 @@ framebuffer_h: int = 0
 framebuffer: list[bool] = []
 staging_framebuffer: list[bool] = []
 
-SEC_TO_MS: float = 0.001
-REFRESH_RATE_MS: int = 16 # ~60 FPS
+SEC_TO_MS: float = 1000.0
+MS_TO_SEC: float = 0.001
+REFRESH_RATE_SEC: float = 128.0 * MS_TO_SEC # ~15 FPS
+
+seed: int = 0
+deaths: int = 0
+births: int = 0
 
 
 def term_clear() -> None:
     # TODO: UNIX shell support
-    os.system("cls")
+    match os.name:
+        case "nt": os.system("cls")
+        case "posix": os.system("cls")
 
 
 def term_set_cursor(x: int, y: int) -> None:
     # SEE: ANSI ESC - H
-    sys.stdout.write(f"\033[{y};{x}H")
+    sys.stdout.write(f"\033[{y+1};{x+1}H")
 
 
 def set_viewport(w: int, h: int) -> None:
@@ -90,6 +96,7 @@ def framebuffer_set(x: int, y: int, val: bool) -> None:
 
 def update() -> None:
     global framebuffer_w, framebuffer_h, framebuffer
+    global deaths, births
 
     staging_framebuffer = framebuffer.copy()
 
@@ -107,11 +114,12 @@ def update() -> None:
             if alive:
                 if count < 2 or count > 3:
                     staging_framebuffer[framebuffer_indx(x, y)] = False
+                    deaths += 1
             else:
                 if count == 3:
                     staging_framebuffer[framebuffer_indx(x, y)] = True
+                    births += 1
 
-    # NOTE(Ivan 25/09/25): Fuckass copy
     framebuffer[:] = staging_framebuffer
 
 
@@ -119,7 +127,6 @@ def draw() -> None:
     global framebuffer_w
     global framebuffer_h
 
-    term_set_cursor(0, 0)
     for y in range(framebuffer_h):
         for x in range(framebuffer_w):
             sys.stdout.write("██" if framebuffer_get(x, y) else "  ")
@@ -133,10 +140,16 @@ def main() -> None:
     global framebuffer_w
     global framebuffer_h
     global framebuffer
+    global seed
+    global deaths
+    global births
 
     set_viewport(64, 64)
 
+    seed = random.randint(0, 999999)
+
     # Populate
+    random.seed(seed)
     for y in range(framebuffer_h):
         for x in range(framebuffer_w):
             framebuffer_set(x, y, random.randint(0, 1))
@@ -144,8 +157,16 @@ def main() -> None:
     # Main loop
     while True:
         update()
+        term_set_cursor(0, 0)
         draw()
-        time.sleep(round(float(REFRESH_RATE_MS) * SEC_TO_MS))
+        term_set_cursor(framebuffer_w*2, 0)
+        sys.stdout.write(f"Seed: {seed}")
+        term_set_cursor(framebuffer_w*2, 1)
+        sys.stdout.write(f"Deaths: {deaths}")
+        term_set_cursor(framebuffer_w*2, 2)
+        sys.stdout.write(f"Births: {births}")
+
+        time.sleep(REFRESH_RATE_SEC)
 
 
 if __name__ == "__main__":
