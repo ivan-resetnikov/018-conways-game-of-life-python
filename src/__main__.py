@@ -14,14 +14,13 @@
 #   of merchantability, fitness for a particular purpose, and
 #   noninfringement. In no event shall the author be liable for any
 #   claim, damages, or other liability arising from the use of this software.
-# 
-# Notes:
-#   global-keyword hell, brace your eyes
 
 import os     # Provides: system
 import sys    # Provides: stdout
 import time   # Provides: sleep
 import random # Provides: randint
+
+import io_ext
 
 
 viewport_w: int = 0
@@ -31,7 +30,7 @@ staging_viewport: list[bool] = []
 
 SEC_TO_MS: float = 1000.0
 MS_TO_SEC: float = 0.001
-REFRESH_RATE_SEC: float = 128.0 * MS_TO_SEC # ~15 FPS
+FRAME_DELAY_SEC: float = 64.0 * MS_TO_SEC # ~30 FPS
 
 seed: int = 0
 deaths: int = 0
@@ -54,6 +53,7 @@ def set_viewport(w: int, h: int) -> None:
     global viewport_w
     global viewport_h
     global viewport
+    global staging_viewport
 
     term_clear()
     viewport_w = w
@@ -65,14 +65,10 @@ def set_viewport(w: int, h: int) -> None:
 
 
 def viewport_indx(x: int, y: int) -> int:
-    global viewport_w
-
     return y * viewport_w + x
 
 
 def viewport_get(x: int, y: int) -> bool:
-    global viewport_w
-    global viewport_h
     global viewport
 
     # Bounds check
@@ -83,8 +79,6 @@ def viewport_get(x: int, y: int) -> bool:
 
 
 def viewport_set(x: int, y: int, val: bool) -> None:
-    global viewport_w
-    global viewport_h
     global viewport
 
     # Bounds check
@@ -95,8 +89,9 @@ def viewport_set(x: int, y: int, val: bool) -> None:
 
 
 def update() -> None:
-    global viewport_w, viewport_h, viewport
-    global deaths, births
+    global viewport
+    global deaths
+    global births
 
     staging_viewport = viewport.copy()
 
@@ -123,11 +118,8 @@ def update() -> None:
     viewport[:] = staging_viewport
 
 
-def draw() -> None:
-    global viewport_w
-    global viewport_h
-
-    # NOTE(Ivan 25/09/08): Language's stdout flushing policy of forcing buffered flushing when reaching a size limit,
+def draw_viewport() -> None:
+    # NOTE(Ivan 25/09/28): Language's stdout flushing policy of forcing buffered flushing when reaching a size limit,
     # leads to tearing (Flushing of a partial frame) and a negative performance impact.
     # We will push the output frame to our own buffer and flush it with one call.
     framebuffer: str = ""
@@ -143,18 +135,11 @@ def draw() -> None:
 
 
 def main() -> None:
-    global viewport_w
-    global viewport_h
-    global viewport
-    global seed
-    global deaths
-    global births
-
     set_viewport(64, 64)
 
+    # Populate
     seed = random.randint(0, 999999)
 
-    # Populate
     random.seed(seed)
     for y in range(viewport_h):
         for x in range(viewport_w):
@@ -163,7 +148,7 @@ def main() -> None:
     # Main loop
     while True:
         update()
-        draw()
+        draw_viewport()
         term_set_cursor(viewport_w*2, 0)
         sys.stdout.write(f"Seed: {seed}")
         term_set_cursor(viewport_w*2, 1)
@@ -171,7 +156,17 @@ def main() -> None:
         term_set_cursor(viewport_w*2, 2)
         sys.stdout.write(f"Births: {births}")
 
-        time.sleep(REFRESH_RATE_SEC)
+        term_set_cursor(viewport_w*2, 4)
+        sys.stdout.write("Press [ESC] to exit")
+
+        term_set_cursor(0, viewport_h)
+        if io_ext.rawin.has_key():
+            key: str = io_ext.rawin.read_key()
+            match key:
+                case io_ext.KEY_ESC:
+                    break
+
+        time.sleep(FRAME_DELAY_SEC)
 
 
 if __name__ == "__main__":
