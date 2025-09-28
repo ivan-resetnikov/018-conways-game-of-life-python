@@ -107,10 +107,10 @@ def update() -> None:
                 framebuffer_get(x + dx, y + dy)
                 for dx in (-1, 0, 1)
                 for dy in (-1, 0, 1)
-                if not (dx == 0 and dy == 0) # NOTE(Ivan 25/09/25): Maybe not cycles sampling origin twice by unrolling the loop?
+                if not (dx == 0 and dy == 0) # NOTE(Ivan 25/09/25): Maybe not waste cycles sampling origin twice by unrolling the loop?
             ])
 
-            # NOTE(Ivan 25/09/25): Not using helper function to not waste cycles of bounds checking.
+            # NOTE(Ivan 25/09/25): Not using helper function to not waste cycles on bounds checking.
             if alive:
                 if count < 2 or count > 3:
                     staging_framebuffer[framebuffer_indx(x, y)] = False
