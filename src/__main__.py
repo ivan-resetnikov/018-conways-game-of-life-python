@@ -24,10 +24,10 @@ import time   # Provides: sleep
 import random # Provides: randint
 
 
-framebuffer_w: int = 0
-framebuffer_h: int = 0
-framebuffer: list[bool] = []
-staging_framebuffer: list[bool] = []
+viewport_w: int = 0
+viewport_h: int = 0
+viewport: list[bool] = []
+staging_viewport: list[bool] = []
 
 SEC_TO_MS: float = 1000.0
 MS_TO_SEC: float = 0.001
@@ -51,60 +51,60 @@ def term_set_cursor(x: int, y: int) -> None:
 
 
 def set_viewport(w: int, h: int) -> None:
-    global framebuffer_w
-    global framebuffer_h
-    global framebuffer
+    global viewport_w
+    global viewport_h
+    global viewport
 
     term_clear()
-    framebuffer_w = w
-    framebuffer_h = h
+    viewport_w = w
+    viewport_h = h
 
     # Popuplate with 0s
-    framebuffer = [False for _ in range(framebuffer_w * framebuffer_h)]
-    staging_framebuffer = framebuffer.copy()
+    viewport = [False for _ in range(viewport_w * viewport_h)]
+    staging_viewport = viewport.copy()
 
 
-def framebuffer_indx(x: int, y: int) -> int:
-    global framebuffer_w
+def viewport_indx(x: int, y: int) -> int:
+    global viewport_w
 
-    return y * framebuffer_w + x
-
-
-def framebuffer_get(x: int, y: int) -> bool:
-    global framebuffer_w
-    global framebuffer_h
-    global framebuffer
-
-    # Bounds check
-    if x < 0 or x >= framebuffer_w: return False
-    if y < 0 or y >= framebuffer_h: return False
-
-    return framebuffer[framebuffer_indx(x, y)]
+    return y * viewport_w + x
 
 
-def framebuffer_set(x: int, y: int, val: bool) -> None:
-    global framebuffer_w
-    global framebuffer_h
-    global framebuffer
+def viewport_get(x: int, y: int) -> bool:
+    global viewport_w
+    global viewport_h
+    global viewport
 
     # Bounds check
-    if x < 0 or x >= framebuffer_w: return
-    if y < 0 or y >= framebuffer_h: return
+    if x < 0 or x >= viewport_w: return False
+    if y < 0 or y >= viewport_h: return False
+
+    return viewport[viewport_indx(x, y)]
+
+
+def viewport_set(x: int, y: int, val: bool) -> None:
+    global viewport_w
+    global viewport_h
+    global viewport
+
+    # Bounds check
+    if x < 0 or x >= viewport_w: return
+    if y < 0 or y >= viewport_h: return
     
-    framebuffer[framebuffer_indx(x, y)] = val
+    viewport[viewport_indx(x, y)] = val
 
 
 def update() -> None:
-    global framebuffer_w, framebuffer_h, framebuffer
+    global viewport_w, viewport_h, viewport
     global deaths, births
 
-    staging_framebuffer = framebuffer.copy()
+    staging_viewport = viewport.copy()
 
-    for y in range(framebuffer_h):
-        for x in range(framebuffer_w):
-            alive = framebuffer_get(x, y)
+    for y in range(viewport_h):
+        for x in range(viewport_w):
+            alive = viewport_get(x, y)
             count = sum([
-                framebuffer_get(x + dx, y + dy)
+                viewport_get(x + dx, y + dy)
                 for dx in (-1, 0, 1)
                 for dy in (-1, 0, 1)
                 if not (dx == 0 and dy == 0) # NOTE(Ivan 25/09/25): Maybe not waste cycles sampling origin twice by unrolling the loop?
@@ -113,33 +113,39 @@ def update() -> None:
             # NOTE(Ivan 25/09/25): Not using helper function to not waste cycles on bounds checking.
             if alive:
                 if count < 2 or count > 3:
-                    staging_framebuffer[framebuffer_indx(x, y)] = False
+                    staging_viewport[viewport_indx(x, y)] = False
                     deaths += 1
             else:
                 if count == 3:
-                    staging_framebuffer[framebuffer_indx(x, y)] = True
+                    staging_viewport[viewport_indx(x, y)] = True
                     births += 1
 
-    framebuffer[:] = staging_framebuffer
+    viewport[:] = staging_viewport
 
 
 def draw() -> None:
-    global framebuffer_w
-    global framebuffer_h
+    global viewport_w
+    global viewport_h
 
-    for y in range(framebuffer_h):
-        for x in range(framebuffer_w):
-            sys.stdout.write("██" if framebuffer_get(x, y) else "  ")
-        sys.stdout.write("\n")
+    # NOTE(Ivan 25/09/08): Language's stdout flushing policy of forcing buffered flushing when reaching a size limit,
+    # leads to tearing (Flushing of a partial frame) and a negative performance impact.
+    # We will push the output frame to our own buffer and flush it with one call.
+    framebuffer: str = ""
+
+    for y in range(viewport_h):
+        for x in range(viewport_w):
+            framebuffer += "██" if viewport_get(x, y) else "  "
+        framebuffer += "\n"
     
-    # NOTE(Ivan 25/09/25): Windows Terminal as of today does not care about flushing, we'll get tearing and performance hit.
+    term_set_cursor(0, 0)
+    sys.stdout.write(framebuffer)
     sys.stdout.flush()
 
 
 def main() -> None:
-    global framebuffer_w
-    global framebuffer_h
-    global framebuffer
+    global viewport_w
+    global viewport_h
+    global viewport
     global seed
     global deaths
     global births
@@ -150,20 +156,19 @@ def main() -> None:
 
     # Populate
     random.seed(seed)
-    for y in range(framebuffer_h):
-        for x in range(framebuffer_w):
-            framebuffer_set(x, y, random.randint(0, 1))
+    for y in range(viewport_h):
+        for x in range(viewport_w):
+            viewport_set(x, y, random.randint(0, 1))
 
     # Main loop
     while True:
         update()
-        term_set_cursor(0, 0)
         draw()
-        term_set_cursor(framebuffer_w*2, 0)
+        term_set_cursor(viewport_w*2, 0)
         sys.stdout.write(f"Seed: {seed}")
-        term_set_cursor(framebuffer_w*2, 1)
+        term_set_cursor(viewport_w*2, 1)
         sys.stdout.write(f"Deaths: {deaths}")
-        term_set_cursor(framebuffer_w*2, 2)
+        term_set_cursor(viewport_w*2, 2)
         sys.stdout.write(f"Births: {births}")
 
         time.sleep(REFRESH_RATE_SEC)
