@@ -37,7 +37,6 @@ if os.name == "nt":
                 # We could map these special keys to uinque names later, i.e. <UP> <ESC> <F1> <RETURN>
 
                 cmd = msvcrt.getch()
-                print(cmd)
                 return ""
             try:
                 return ch.decode("utf-8")

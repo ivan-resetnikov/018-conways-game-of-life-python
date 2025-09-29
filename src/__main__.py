@@ -35,13 +35,13 @@ FRAME_DELAY_SEC: float = 64.0 * MS_TO_SEC # ~30 FPS
 seed: int = 0
 deaths: int = 0
 births: int = 0
+time_scale: float = 1.0
 
 
 def term_clear() -> None:
-    # TODO: UNIX shell support
     match os.name:
         case "nt": os.system("cls")
-        case "posix": os.system("cls")
+        case "posix": os.system("clear")
 
 
 def term_set_cursor(x: int, y: int) -> None:
@@ -135,6 +135,8 @@ def draw_viewport() -> None:
 
 
 def main() -> None:
+    global time_scale
+
     set_viewport(64, 64)
 
     # Populate
@@ -147,7 +149,8 @@ def main() -> None:
 
     # Main loop
     while True:
-        update()
+        if not time_scale == 0.0:
+            update()
         draw_viewport()
         term_set_cursor(viewport_w*2, 0)
         sys.stdout.write(f"Seed: {seed}")
@@ -155,9 +158,13 @@ def main() -> None:
         sys.stdout.write(f"Deaths: {deaths}")
         term_set_cursor(viewport_w*2, 2)
         sys.stdout.write(f"Births: {births}")
+        term_set_cursor(viewport_w*2, 3)
+        sys.stdout.write(f"Time scale: {time_scale}" + " " * len(str(time_scale)))
 
-        term_set_cursor(viewport_w*2, 4)
+        term_set_cursor(viewport_w*2, 5)
         sys.stdout.write("Press [ESC] to exit")
+        term_set_cursor(viewport_w*2, 6)
+        sys.stdout.write("Press [SPACE] to set 10 random cells alive")
 
         term_set_cursor(0, viewport_h)
         if io_ext.rawin.has_key():
@@ -165,8 +172,22 @@ def main() -> None:
             match key:
                 case io_ext.KEY_ESC:
                     break
+                case "1":
+                    time_scale *= 0.5
+                case "2":
+                    if time_scale == 0:
+                        time_scale = 0.5
+                    time_scale *= 2.0
+                case "3":
+                    time_scale = 1.0
+                case "4":
+                    time_scale = 0.0
+                case " ":
+                    for _ in range(10):
+                        viewport_set(random.randint(0, viewport_w), random.randint(0, viewport_h), 1)
 
-        time.sleep(FRAME_DELAY_SEC)
+        if not time_scale == 0.0:
+            time.sleep(FRAME_DELAY_SEC * time_scale)
 
 
 if __name__ == "__main__":
